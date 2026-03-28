@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<!--
+  수정용 저장 위치: C:\Users\Owner\financial-control-tower\index.html
+  휴대폰·PC 동시 보기: (1) Firebase 설정 후 동기화 코드 사용
+                    (2) 또는 «데이터보내기/가져오기»로 JSON 파일 주고받기
+-->
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1e3a5f" />
+  <title>Minkyu's 2026 Financial Control Tower</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700&display=swap" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" />
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <style>
+    body { font-family: "Plus Jakarta Sans", system-ui, sans-serif; }
+    .glass { background: rgba(255, 255, 255, 0.72); backdrop-filter: blur(12px); }
+    .input-num::-webkit-outer-spin-button,
+    .input-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .input-num { -moz-appearance: textfield; }
+    .row-hover:hover { background: rgba(241, 245, 249, 0.9); }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 text-slate-800 pb-28 md:pb-12">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 py-6 md:py-10">
+    <header class="flex flex-col gap-6 mb-6">
+      <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-widest text-blue-600 mb-1">2026 · Personal</p>
+          <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/25">
+              <i class="fa-solid fa-chart-pie text-lg"></i>
+            </span>
+            Minkyu's Financial Tower
+          </h1>
+          <p class="text-slate-500 mt-2 text-sm">월별로 고정지출·카드·수입을 나눠 저장합니다.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="glass rounded-2xl border border-white/80 shadow-sm px-3 py-2 flex items-center gap-2">
+            <span class="text-xs font-bold text-slate-500 uppercase">통화</span>
+            <select id="currency" class="bg-white border border-slate-200 rounded-xl px-2 py-1.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/30">
+              <option value="USD">USD ($)</option>
+              <option value="KRW">KRW (₩)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Month navigator -->
+      <div class="flex flex-wrap items-center justify-between gap-3 bg-white/90 border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+        <button type="button" id="btn-prev-month" class="flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-sm font-bold text-slate-700">
+          <i class="fa-solid fa-chevron-left"></i> 이전 달
+        </button>
+        <div class="flex items-center gap-2">
+          <i class="fa-regular fa-calendar text-blue-500"></i>
+          <select id="month-select" class="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/30 min-w-[11rem]"></select>
+        </div>
+        <button type="button" id="btn-next-month" class="flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-sm font-bold text-slate-700">
+          다음 달 <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Income goal + actuals -->
+    <section class="rounded-2xl bg-white border border-slate-200 shadow-md p-4 sm:p-5 mb-6">
+      <h2 class="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+        <i class="fa-solid fa-bullseye text-emerald-500"></i> 이번 달 수입 목표 & 실적
+      </h2>
+      <div class="grid sm:grid-cols-3 gap-3">
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase">월 수입 목표</label>
+          <input type="number" id="income-target" min="0" step="1" placeholder="10000"
+            class="input-num mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-right outline-none focus:ring-2 focus:ring-blue-500/25" />
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase">MTA 월급 (이번 달)</label>
+          <input type="number" id="income-mta" min="0" step="1" data-income="mta"
+            class="input-num mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-right outline-none focus:ring-2 focus:ring-emerald-500/20" placeholder="0" />
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase">PPF 비지니스 수입 (이번 달)</label>
+          <input type="number" id="income-ppf" min="0" step="1" data-income="ppf"
+            class="input-num mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-right outline-none focus:ring-2 focus:ring-emerald-500/20" placeholder="0" />
+        </div>
+      </div>
+      <div class="mt-4 grid sm:grid-cols-2 gap-3 text-sm">
+        <div class="rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2">
+          <span class="text-slate-500 text-xs">실수입 합계 (MTA + PPF)</span>
+          <p id="income-actual-sum" class="text-lg font-bold text-emerald-800 tabular-nums">$0</p>
+        </div>
+        <div class="rounded-xl bg-amber-50 border border-amber-100 px-3 py-2">
+          <span class="text-slate-500 text-xs">수입 목표 달성률</span>
+          <p id="income-goal-pct" class="text-lg font-bold text-amber-900 tabular-nums">0%</p>
+        </div>
+      </div>
+      <div class="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
+        <div id="income-progress-bar" class="h-full bg-emerald-500 rounded-full transition-all duration-300" style="width:0%"></div>
+      </div>
+    </section>
+
+    <!-- Hero totals -->
+    <section class="rounded-3xl bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 text-white p-6 sm:p-8 shadow-2xl shadow-blue-900/30 mb-8 border border-white/10">
+      <div class="grid sm:grid-cols-2 gap-6">
+        <div>
+          <p class="text-blue-100/90 text-sm font-medium">선택한 달 총 지출 예정</p>
+          <p id="total-amount" class="text-3xl sm:text-4xl font-bold mt-2 tabular-nums">$0</p>
+          <p id="surplus-line" class="text-blue-100 text-sm mt-2 tabular-nums">실수입 − 지출 = —</p>
+        </div>
+        <div class="sm:text-right space-y-3">
+          <div class="flex sm:flex-col sm:items-end gap-4 sm:gap-2">
+            <div>
+              <p class="text-blue-100/80 text-xs font-semibold uppercase">고정지출</p>
+              <p id="sub-fixed" class="text-xl font-bold tabular-nums">$0</p>
+            </div>
+            <div>
+              <p class="text-blue-100/80 text-xs font-semibold uppercase">카드 이번달</p>
+              <p id="sub-cards" class="text-xl font-bold tabular-nums">$0</p>
+            </div>
+          </div>
+          <div class="pt-2 border-t border-white/15">
+            <p class="text-blue-100 text-xs font-medium">지출 ÷ 월 수입 목표</p>
+            <p id="target-percent" class="text-2xl font-bold text-amber-200 tabular-nums">0%</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid lg:grid-cols-2 gap-8">
+      <section class="space-y-4">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-house-chimney text-blue-500"></i>
+            고정 지출 항목
+          </h2>
+          <span class="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg" id="fixed-count">0개 입력</span>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-lg overflow-hidden">
+          <div class="px-4 py-3 bg-slate-50/90 border-b border-slate-100 flex text-xs font-bold text-slate-500 uppercase tracking-wide">
+            <span class="flex-1">항목</span>
+            <span class="w-32 text-right pr-1">금액</span>
+          </div>
+          <div id="expense-list" class="divide-y divide-slate-100"></div>
+        </div>
+        <p class="text-xs text-slate-400">맨 아래 3줄은 매달 항목 이름을 직접 적을 수 있는 빈 칸입니다.</p>
+      </section>
+
+      <section class="space-y-4">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-credit-card text-orange-500"></i>
+            신용카드 · 해당 월 결제
+          </h2>
+          <span class="text-xs text-slate-400 text-right leading-tight">결제일은 모든 달에 공통</span>
+        </div>
+        <div id="card-list" class="space-y-3"></div>
+      </section>
+    </div>
+
+    <!-- Sync & backup -->
+    <section class="mt-10 rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4 sm:p-5 space-y-4">
+      <h3 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+        <i class="fa-solid fa-cloud-arrow-up text-sky-600"></i>
+        다른 기기와 같은 데이터 보기
+      </h3>
+      <p class="text-xs text-slate-500 leading-relaxed">
+        <strong class="text-slate-600">방법 A</strong> — 아래에 Firebase 웹 앱 설정을 넣은 뒤, 휴대폰·PC에서 <strong>같은 동기화 코드</strong>를 입력하면 Firestore에 자동 저장됩니다.
+        (Firebase 콘솔에서 프로젝트 만들기 → Firestore 만들기 → 프로젝트 설정에서 설정 객체 복사 → 이 파일 상단 스크립트의 <code class="bg-white px-1 rounded">FIREBASE_CONFIG</code>에 붙여넣기. 보안 규칙은 본인 책임으로 설정하세요.)
+      </p>
+      <div class="flex flex-col sm:flex-row flex-wrap gap-2 items-stretch sm:items-end">
+        <div class="flex-1 min-w-[200px]">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">동기화 코드 (길게 적을수록 안전)</label>
+          <input type="text" id="sync-code" autocomplete="off"
+            class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono" placeholder="예: minkyu-secret-2026-xyz" />
+        </div>
+        <button type="button" id="btn-sync-apply" class="px-4 py-2 rounded-xl bg-sky-600 text-white text-sm font-bold hover:bg-sky-700">클라우드 연결</button>
+        <span id="sync-status" class="text-xs text-slate-500 self-center"></span>
+      </div>
+      <div class="flex flex-wrap gap-2 pt-2 border-t border-slate-200">
+        <button type="button" id="btn-export" class="px-4 py-2 rounded-xl bg-slate-800 text-white text-sm font-bold">데이터보내기 (JSON)</button>
+        <label class="px-4 py-2 rounded-xl bg-white border border-slate-200 text-sm font-bold cursor-pointer hover:bg-slate-50">
+          가져오기
+          <input type="file" id="btn-import" accept="application/json" class="hidden" />
+        </label>
+      </div>
+    </section>
+
+    <div class="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+      <button type="button" id="btn-save-local"
+        class="inline-flex items-center justify-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold hover:bg-slate-800 shadow-lg">
+        <i class="fa-solid fa-floppy-disk"></i>
+        이 기기에 지금 저장
+      </button>
+      <p class="text-slate-400 text-xs sm:text-sm text-center sm:text-right max-w-md">
+        입력 시 자동 저장(로컬). Firebase를 켜 두면 클라우드에도 백업됩니다.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    /** ▼▼▼ Firebase 웹 앱 설정 (비워 두면 로컬 + JSON만 사용) ▼▼▼ */
+    const FIREBASE_CONFIG = {
+       apiKey: "AIzaSyDIWsMzDSIDnPE_uNoByQYqCqZX4rx-gsU",
+  authDomain: "daniel-home-financial-control.firebaseapp.com",
+  projectId: "daniel-home-financial-control",
+  storageBucket: "daniel-home-financial-control.firebasestorage.app",
+  messagingSenderId: "1083766647391",
+  appId: "1:1083766647391:web:2d71457f31fd67289f49ea",
+    };
+    /** ▲▲▲ 여기에 복사한 설정을 붙여넣으세요 ▲▲▲ */
+
+    const STORAGE_KEY = "minkyu_fin_data_v3";
+    const LEGACY_KEYS = ["minkyu_fin_data_v2", "minkyu_fin_data"];
+
+    const categories = [
+      "모기지/렌트비",
+      "MCU 홈 에퀴티론 비용",
+      "테슬라 할부",
+      "PSE&G 전기세",
+      "Bevin 전기·수도세",
+      "자동차 보험료",
+      "아버지 차 보험료",
+      "EZ Pass",
+      "집보험 (State Farm)",
+      "Fios 집 인터넷",
+      "생명보험",
+      "교회 헌금",
+      "부식비",
+      "Take out",
+      "외식비",
+      "생활비",
+      "차량 Gas",
+      "Office 렌트비",
+      "오피스 인터넷",
+      "오피스 보험료",
+      "AI 구독료",
+      "기타",
+    ];
+
+    const creditCards = [
+      "Chase 3383",
+      "Chase 1255",
+      "Chase 7190",
+      "Prime 2429",
+      "Citi 8245",
+      "Citi 0223",
+    ];
+
+    const CUSTOM_SLOTS = 3;
+
+    let selectedMonthKey = "";
+    let appState = null;
+    let firebaseDb = null;
+    let cloudUnsub = null;
+    let ignoreRemoteUntil = 0;
+    let saveCloudTimer = null;
+
+    function monthKey(y, m) {
+      return `${y}-${String(m).padStart(2, "0")}`;
+    }
+
+    function parseMonthKey(key) {
+      const [y, m] = key.split("-").map(Number);
+      return { y, m };
+    }
+
+    function currentMonthKey() {
+      const t = new Date();
+      return monthKey(t.getFullYear(), t.getMonth() + 1);
+    }
+
+    function addMonths(key, delta) {
+      const { y, m } = parseMonthKey(key);
+      const d = new Date(y, m - 1 + delta, 1);
+      return monthKey(d.getFullYear(), d.getMonth() + 1);
+    }
+
+    function formatMonthLabel(key) {
+      const { y, m } = parseMonthKey(key);
+      return `${y}년 ${m}월`;
+    }
+
+    function defaultIncomeTarget(currency) {
+      if (currency === "USD") return "10000";
+      return "13500000";
+    }
+
+    function formatMoney(amount, currency) {
+      const n = Number(amount) || 0;
+      if (currency === "KRW") {
+        return "₩" + new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 }).format(n);
+      }
+      return "$" + new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n);
+    }
+
+    function getCurrency() {
+      return document.getElementById("currency").value;
+    }
+
+    function emptyMonthData() {
+      return {
+        expenses: {},
+        custom: Array.from({ length: CUSTOM_SLOTS }, () => ({ label: "", amount: "" })),
+        cardAmounts: {},
+        incomeMta: "",
+        incomePpf: "",
+      };
+    }
+
+    function ensureAppState() {
+      if (!appState) {
+        appState = {
+          version: 3,
+          currency: "USD",
+          incomeTarget: defaultIncomeTarget("USD"),
+          cardDates: {},
+          months: {},
+          syncCode: "",
+        };
+      }
+      return appState;
+    }
+
+    function getMonthData(key) {
+      const s = ensureAppState();
+      if (!s.months[key]) s.months[key] = emptyMonthData();
+      return s.months[key];
+    }
+
+    function sumExpensesFromDom() {
+      let t = 0;
+      document
+        .querySelectorAll('input[data-type="expense"], input[data-type="custom-expense"]')
+        .forEach((el) => {
+          t += Number(el.value) || 0;
+        });
+      return t;
+    }
+
+    function sumCardsFromDom() {
+      let t = 0;
+      document.querySelectorAll('input[data-type="card-amount"]').forEach((el) => {
+        t += Number(el.value) || 0;
+      });
+      return t;
+    }
+
+    function readDomIntoMonth(key) {
+      const md = getMonthData(key);
+      md.expenses = {};
+      document.querySelectorAll('input[data-type="expense"]').forEach((el) => {
+        md.expenses[el.dataset.name] = el.value;
+      });
+      md.custom = [];
+      for (let i = 0; i < CUSTOM_SLOTS; i++) {
+        const lab = document.querySelector(`input[data-type="custom-label"][data-slot="${i}"]`);
+        const amt = document.querySelector(`input[data-type="custom-expense"][data-slot="${i}"]`);
+        md.custom.push({
+          label: lab ? lab.value : "",
+          amount: amt ? amt.value : "",
+        });
+      }
+      md.cardAmounts = {};
+      document.querySelectorAll('input[data-type="card-amount"]').forEach((el) => {
+        md.cardAmounts[el.dataset.name] = el.value;
+      });
+      md.incomeMta = document.getElementById("income-mta").value;
+      md.incomePpf = document.getElementById("income-ppf").value;
+
+      appState.currency = getCurrency();
+      appState.incomeTarget = document.getElementById("income-target").value;
+
+      document.querySelectorAll('input[data-type="card-date"]').forEach((el) => {
+        appState.cardDates[el.dataset.name] = el.value;
+      });
+    }
+
+    function applyMonthToDom(key) {
+      const md = getMonthData(key);
+      const currency = appState.currency || "USD";
+
+      document.getElementById("currency").value = currency;
+      document.getElementById("income-target").value =
+        appState.incomeTarget || defaultIncomeTarget(currency);
+      document.getElementById("income-mta").value = md.incomeMta || "";
+      document.getElementById("income-ppf").value = md.incomePpf || "";
+
+      document.querySelectorAll('input[data-type="expense"]').forEach((el) => {
+        const k = el.dataset.name;
+        el.value = md.expenses[k] != null ? md.expenses[k] : "";
+      });
+
+      for (let i = 0; i < CUSTOM_SLOTS; i++) {
+        const c = md.custom[i] || { label: "", amount: "" };
+        const lab = document.querySelector(`input[data-type="custom-label"][data-slot="${i}"]`);
+        const amt = document.querySelector(`input[data-type="custom-expense"][data-slot="${i}"]`);
+        if (lab) lab.value = c.label || "";
+        if (amt) amt.value = c.amount || "";
+      }
+
+      document.querySelectorAll('input[data-type="card-amount"]').forEach((el) => {
+        const k = el.dataset.name;
+        el.value = md.cardAmounts[k] != null ? md.cardAmounts[k] : "";
+      });
+
+      document.querySelectorAll('input[data-type="card-date"]').forEach((el) => {
+        const k = el.dataset.name;
+        el.value = appState.cardDates[k] != null ? appState.cardDates[k] : "";
+      });
+
+      refreshCurrencyPrefixes();
+      updateDueHints();
+      updateTotalsUi();
+    }
+
+    function refreshCurrencyPrefixes() {
+      const sym = getCurrency() === "KRW" ? "₩" : "$";
+      document.querySelectorAll(".currency-prefix").forEach((el) => {
+        el.textContent = sym;
+      });
+    }
+
+    function updateTotalsUi() {
+      const currency = getCurrency();
+      const fixedTotal = sumExpensesFromDom();
+      const cardTotal = sumCardsFromDom();
+      const grand = fixedTotal + cardTotal;
+
+      document.getElementById("total-amount").textContent = formatMoney(grand, currency);
+      document.getElementById("sub-fixed").textContent = formatMoney(fixedTotal, currency);
+      document.getElementById("sub-cards").textContent = formatMoney(cardTotal, currency);
+
+      const targetRaw = document.getElementById("income-target").value;
+      let monthlyTarget = parseFloat(targetRaw);
+      if (!monthlyTarget || monthlyTarget <= 0) {
+        monthlyTarget = parseFloat(defaultIncomeTarget(currency)) || 1;
+      }
+      const expenseVsTarget = ((grand / monthlyTarget) * 100).toFixed(1);
+      document.getElementById("target-percent").textContent = `${expenseVsTarget}%`;
+
+      const mta = Number(document.getElementById("income-mta").value) || 0;
+      const ppf = Number(document.getElementById("income-ppf").value) || 0;
+      const actual = mta + ppf;
+      document.getElementById("income-actual-sum").textContent = formatMoney(actual, currency);
+
+      const goalPct = monthlyTarget > 0 ? ((actual / monthlyTarget) * 100).toFixed(1) : "0";
+      document.getElementById("income-goal-pct").textContent = `${goalPct}%`;
+      const barW = Math.min(100, monthlyTarget > 0 ? (actual / monthlyTarget) * 100 : 0);
+      document.getElementById("income-progress-bar").style.width = `${barW}%`;
+
+      const surplus = actual - grand;
+      document.getElementById("surplus-line").textContent =
+        `실수입 − 지출 = ${formatMoney(surplus, currency)}`;
+
+      const totalSlots = categories.length + CUSTOM_SLOTS;
+      let filled = 0;
+      document
+        .querySelectorAll('input[data-type="expense"], input[data-type="custom-expense"]')
+        .forEach((inp) => {
+          if (Number(inp.value) > 0) filled++;
+        });
+      document.getElementById("fixed-count").textContent = `${filled} / ${totalSlots} 금액 입력`;
+
+      persistLocal();
+      scheduleCloudSave();
+    }
+
+    function persistLocal() {
+      readDomIntoMonth(selectedMonthKey);
+      appState.localUpdatedAt = Date.now();
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    function loadFromLocal() {
+      try {
+        let raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          appState = JSON.parse(raw);
+          if (!appState.months) appState.months = {};
+          if (!appState.cardDates) appState.cardDates = {};
+          return;
+        }
+        for (const lk of LEGACY_KEYS) {
+          raw = localStorage.getItem(lk);
+          if (!raw) continue;
+          const old = JSON.parse(raw);
+          appState = ensureAppState();
+          const mk = currentMonthKey();
+          const md = emptyMonthData();
+          const inputs = old.inputs && typeof old.inputs === "object" ? old.inputs : old;
+          Object.keys(inputs).forEach((k) => {
+            if (k.startsWith("expense-")) {
+              md.expenses[k.replace(/^expense-/, "")] = inputs[k];
+            } else if (k.startsWith("card-amount-")) {
+              md.cardAmounts[k.replace(/^card-amount-/, "")] = inputs[k];
+            } else if (k.startsWith("card-date-")) {
+              appState.cardDates[k.replace(/^card-date-/, "")] = inputs[k];
+            }
+          });
+          appState.months[mk] = md;
+          if (old.currency) appState.currency = old.currency;
+          if (old.incomeTarget) appState.incomeTarget = old.incomeTarget;
+          return;
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+      appState = ensureAppState();
+    }
+
+    function fillMonthSelect() {
+      const sel = document.getElementById("month-select");
+      sel.innerHTML = "";
+      for (let y = 2025; y <= 2030; y++) {
+        for (let m = 1; m <= 12; m++) {
+          const key = monthKey(y, m);
+          const opt = document.createElement("option");
+          opt.value = key;
+          opt.textContent = formatMonthLabel(key);
+          sel.appendChild(opt);
+        }
+      }
+      if (sel.querySelector(`option[value="${selectedMonthKey}"]`)) {
+        sel.value = selectedMonthKey;
+      }
+    }
+
+    function goToMonth(newKey) {
+      if (!newKey || newKey === selectedMonthKey) return;
+      readDomIntoMonth(selectedMonthKey);
+      selectedMonthKey = newKey;
+      document.getElementById("month-select").value = newKey;
+      applyMonthToDom(newKey);
+    }
+
+    function initFirebaseIfPossible() {
+      if (!FIREBASE_CONFIG.apiKey || !FIREBASE_CONFIG.projectId) return null;
+      try {
+        if (!firebase.apps.length) {
+          firebase.initializeApp(FIREBASE_CONFIG);
+        }
+        return firebase.firestore();
+      } catch (e) {
+        console.warn(e);
+        return null;
+      }
+    }
+
+    function setSyncStatus(msg) {
+      const el = document.getElementById("sync-status");
+      if (el) el.textContent = msg || "";
+    }
+
+    function applyRemoteState(remote) {
+      if (!remote || typeof remote !== "object") return;
+      ignoreRemoteUntil = Date.now() + 800;
+      appState = remote;
+      if (!appState.months) appState.months = {};
+      if (!appState.cardDates) appState.cardDates = {};
+      document.getElementById("sync-code").value = appState.syncCode || "";
+      applyMonthToDom(selectedMonthKey);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      } catch (e) {}
+      setSyncStatus("클라우드에서 불러옴");
+    }
+
+    function scheduleCloudSave() {
+      if (!firebaseDb || !appState.syncCode) return;
+      clearTimeout(saveCloudTimer);
+      saveCloudTimer = setTimeout(() => {
+        readDomIntoMonth(selectedMonthKey);
+        appState.localUpdatedAt = Date.now();
+        firebaseDb
+          .collection("ftower")
+          .doc(sanitizeDocId(appState.syncCode))
+          .set(
+            {
+              json: JSON.stringify(appState),
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          )
+          .then(() => setSyncStatus("클라우드에 저장됨"))
+          .catch((e) => setSyncStatus("저장 실패: " + e.message));
+      }, 1200);
+    }
+
+    function sanitizeDocId(code) {
+      return String(code).replace(/\//g, "_").slice(0, 700) || "default";
+    }
+
+    function attachCloudListener(code) {
+      if (cloudUnsub) {
+        cloudUnsub();
+        cloudUnsub = null;
+      }
+      if (!firebaseDb || !code) return;
+      const ref = firebaseDb.collection("ftower").doc(sanitizeDocId(code));
+      cloudUnsub = ref.onSnapshot(
+        (snap) => {
+          if (Date.now() < ignoreRemoteUntil) return;
+          if (!snap.exists) return;
+          const d = snap.data();
+          if (!d || !d.json) return;
+          try {
+            const remote = JSON.parse(d.json);
+            const remoteTime = d.updatedAt && d.updatedAt.toMillis ? d.updatedAt.toMillis() : 0;
+            const localRaw = localStorage.getItem(STORAGE_KEY);
+            let localTime = 0;
+            try {
+              const loc = localRaw ? JSON.parse(localRaw) : null;
+              if (loc && loc.localUpdatedAt) localTime = loc.localUpdatedAt;
+            } catch (e) {}
+            if (remoteTime && localTime && remoteTime < localTime) return;
+            applyRemoteState(remote);
+          } catch (e) {
+            console.warn(e);
+          }
+        },
+        (err) => setSyncStatus("동기화 오류: " + err.message)
+      );
+    }
+
+    function updateDueHints() {
+      const realNow = new Date();
+      const realKey = currentMonthKey();
+      const viewingCurrent = selectedMonthKey === realKey;
+      const d = viewingCurrent ? realNow.getDate() : 15;
+      const m = parseMonthKey(selectedMonthKey).m;
+      document.querySelectorAll(".card-block").forEach((block) => {
+        const el = block.querySelector(".due-hint");
+        const inp = block.querySelector('input[data-type="card-date"]');
+        if (!el || !inp) return;
+        const due = parseInt(inp.value, 10);
+        if (!due || due < 1 || due > 31) {
+          el.textContent = "";
+          return;
+        }
+        if (!viewingCurrent) {
+          el.textContent = `매월 ${due}일 결제`;
+          el.className = "text-xs text-slate-400 ml-auto due-hint";
+          return;
+        }
+        if (due >= d) {
+          el.textContent = `${m}/${due}까지 · ${due - d}일 남음`;
+          el.className = "text-xs font-semibold text-emerald-600 ml-auto due-hint";
+        } else {
+          el.textContent = `이번 달 ${due}일 지남 → 다음 달`;
+          el.className = "text-xs text-slate-400 ml-auto due-hint";
+        }
+      });
+    }
+
+    function buildExpenseRows() {
+      const expenseContainer = document.getElementById("expense-list");
+      expenseContainer.innerHTML = "";
+      categories.forEach((cat) => {
+        const row = document.createElement("div");
+        row.className =
+          "row-hover flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 transition-colors";
+        row.innerHTML = `
+          <label class="flex-1 text-sm font-semibold text-slate-700 leading-snug">${cat}</label>
+          <div class="flex items-center justify-end gap-2 shrink-0">
+            <span class="currency-prefix text-xs text-slate-400 font-medium hidden sm:inline">$</span>
+            <input type="number" min="0" step="1" data-type="expense"
+              class="input-num w-full sm:w-36 text-right border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-900 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/25 outline-none"
+              placeholder="0" />
+          </div>`;
+        const inp = row.querySelector("input");
+        inp.dataset.name = cat;
+        inp.addEventListener("input", updateTotalsUi);
+        expenseContainer.appendChild(row);
+      });
+
+      for (let i = 0; i < CUSTOM_SLOTS; i++) {
+        const row = document.createElement("div");
+        row.className =
+          "row-hover flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 bg-amber-50/40 transition-colors";
+        row.innerHTML = `
+          <div class="flex-1 min-w-0">
+            <span class="text-[10px] font-bold text-amber-700 uppercase block mb-1">빈 항목 ${i + 1}</span>
+            <input type="text" data-type="custom-label" data-slot="${i}"
+              class="w-full border border-amber-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400/30"
+              placeholder="항목 이름 직접 입력" />
+          </div>
+          <div class="flex items-center justify-end gap-2 shrink-0">
+            <span class="currency-prefix text-xs text-slate-400 font-medium hidden sm:inline">$</span>
+            <input type="number" min="0" step="1" data-type="custom-expense" data-slot="${i}"
+              class="input-num w-full sm:w-36 text-right border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold bg-white focus:ring-2 focus:ring-amber-400/20 outline-none"
+              placeholder="0" />
+          </div>`;
+        row.querySelectorAll("input").forEach((inp) => inp.addEventListener("input", updateTotalsUi));
+        expenseContainer.appendChild(row);
+      }
+    }
+
+    function buildCards() {
+      const cardContainer = document.getElementById("card-list");
+      cardContainer.innerHTML = "";
+      creditCards.forEach((card) => {
+        const box = document.createElement("div");
+        box.className =
+          "card-block bg-white rounded-2xl border border-slate-200 shadow-md p-4 space-y-3";
+        box.innerHTML = `
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-sm font-bold text-slate-800">${card}</p>
+              <p class="text-xs text-slate-400 mt-0.5">이 달 청구·결제 예정 금액</p>
+            </div>
+            <div class="text-right">
+              <input type="number" min="0" step="1" data-type="card-amount" data-name="${card}"
+                class="input-num w-28 sm:w-32 text-right border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold bg-slate-50 focus:bg-white focus:ring-2 focus:ring-orange-500/20 outline-none"
+                placeholder="0" />
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
+            <span class="text-xs font-bold text-slate-500 uppercase">결제일</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-slate-400">매월</span>
+              <input type="number" min="1" max="31" step="1" data-type="card-date" data-name="${card}"
+                class="input-num w-14 text-center border border-slate-200 rounded-lg py-1.5 text-sm font-bold" placeholder="일" />
+              <span class="text-xs text-slate-500">일</span>
+            </div>
+            <span class="text-xs text-slate-400 ml-auto due-hint"></span>
+          </div>`;
+        box.querySelectorAll("input").forEach((inp) =>
+          inp.addEventListener("input", () => {
+            updateDueHints();
+            updateTotalsUi();
+          })
+        );
+        cardContainer.appendChild(box);
+      });
+    }
+
+    function exportJson() {
+      readDomIntoMonth(selectedMonthKey);
+      appState.localUpdatedAt = Date.now();
+      const blob = new Blob([JSON.stringify(appState, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `financial-tower-${selectedMonthKey}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function importJsonFile(file) {
+      const r = new FileReader();
+      r.onload = () => {
+        try {
+          const o = JSON.parse(r.result);
+          if (!o.months) o.months = {};
+          appState = o;
+          selectedMonthKey = currentMonthKey();
+          fillMonthSelect();
+          const sel = document.getElementById("month-select");
+          if (sel.querySelector(`option[value="${selectedMonthKey}"]`)) sel.value = selectedMonthKey;
+          if (!appState.months[selectedMonthKey]) appState.months[selectedMonthKey] = emptyMonthData();
+          applyMonthToDom(selectedMonthKey);
+          persistLocal();
+          setSyncStatus("JSON 가져오기 완료");
+          if (appState.syncCode && firebaseDb) attachCloudListener(appState.syncCode);
+        } catch (e) {
+          alert("JSON 형식이 올바르지 않습니다.");
+        }
+      };
+      r.readAsText(file);
+    }
+
+    function init() {
+      firebaseDb = initFirebaseIfPossible();
+      loadFromLocal();
+      selectedMonthKey = currentMonthKey();
+      if (!appState.months[selectedMonthKey]) appState.months[selectedMonthKey] = emptyMonthData();
+
+      buildExpenseRows();
+      buildCards();
+      fillMonthSelect();
+      document.getElementById("month-select").value = selectedMonthKey;
+      document.getElementById("month-select").addEventListener("change", (e) => {
+        goToMonth(e.target.value);
+      });
+
+      if (!appState.incomeTarget) appState.incomeTarget = defaultIncomeTarget(appState.currency || "USD");
+      document.getElementById("sync-code").value = appState.syncCode || "";
+
+      applyMonthToDom(selectedMonthKey);
+
+      document.getElementById("currency").addEventListener("change", () => {
+        refreshCurrencyPrefixes();
+        updateTotalsUi();
+      });
+      document.getElementById("income-target").addEventListener("input", updateTotalsUi);
+      document.getElementById("income-mta").addEventListener("input", updateTotalsUi);
+      document.getElementById("income-ppf").addEventListener("input", updateTotalsUi);
+
+      document.getElementById("btn-prev-month").addEventListener("click", () => {
+        goToMonth(addMonths(selectedMonthKey, -1));
+      });
+      document.getElementById("btn-next-month").addEventListener("click", () => {
+        goToMonth(addMonths(selectedMonthKey, 1));
+      });
+
+      document.getElementById("btn-save-local").addEventListener("click", () => {
+        readDomIntoMonth(selectedMonthKey);
+        appState.localUpdatedAt = Date.now();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+        alert("이 기기에 저장했습니다.");
+        scheduleCloudSave();
+      });
+
+      document.getElementById("btn-export").addEventListener("click", exportJson);
+      document.getElementById("btn-import").addEventListener("change", (e) => {
+        const f = e.target.files[0];
+        if (f) importJsonFile(f);
+        e.target.value = "";
+      });
+
+      document.getElementById("btn-sync-apply").addEventListener("click", () => {
+        const code = document.getElementById("sync-code").value.trim();
+        if (!code) {
+          alert("동기화 코드를 입력하세요.");
+          return;
+        }
+        if (!firebaseDb) {
+          alert("Firebase 설정(FIREBASE_CONFIG)을 먼저 채워 주세요. 또는 JSON보내기/가져오기를 사용하세요.");
+          return;
+        }
+        appState.syncCode = code;
+        readDomIntoMonth(selectedMonthKey);
+        persistLocal();
+        ignoreRemoteUntil = Date.now() + 500;
+        firebaseDb
+          .collection("ftower")
+          .doc(sanitizeDocId(code))
+          .get()
+          .then((snap) => {
+            if (snap.exists && snap.data().json) {
+              try {
+                applyRemoteState(JSON.parse(snap.data().json));
+              } catch (e) {
+                console.warn(e);
+              }
+            }
+            attachCloudListener(code);
+            scheduleCloudSave();
+            setSyncStatus("연결됨");
+          })
+          .catch((e) => setSyncStatus("연결 실패: " + e.message));
+      });
+
+      if (appState.syncCode && firebaseDb) {
+        attachCloudListener(appState.syncCode);
+        setSyncStatus("동기화 대기");
+      } else if (!firebaseDb) {
+        setSyncStatus("Firebase 미설정 → JSON으로 기기 간 복사 가능");
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
